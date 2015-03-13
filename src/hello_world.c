@@ -115,7 +115,7 @@ void create_labels(void) {
   text_layer_set_background_color(main_label_text_layer, background);
   text_layer_set_text_color(main_label_text_layer, foreground);
   text_layer_set_font(main_label_text_layer, fonts_get_system_font(FONT_KEY_ROBOTO_BOLD_SUBSET_49));
-  text_layer_set_text(main_label_text_layer, "0");
+  update_main_label(stretch_sec);
   
 }
 
@@ -197,6 +197,7 @@ void long_click_reset_pause_sec(ClickRecognizerRef recognizer, void *context) {
 void up_single_click_handler(ClickRecognizerRef recognizer, void *context) {
   stretch_time += INT_INCREMENT_STRETCH;
   stretch_sec += INT_INCREMENT_STRETCH;
+  if (!running) { update_main_label(stretch_sec); }
   refresh_stretch_time_label();
 }
 

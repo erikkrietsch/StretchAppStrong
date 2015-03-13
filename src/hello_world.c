@@ -6,15 +6,18 @@ TextLayer *stretch_label_text_layer;
 TextLayer *pause_label_text_layer;
 TextLayer *main_label_text_layer;
 
-// DEFINE INT_DEFAULT_STRETCH_TIME = 30;
-// DEFINE INT_DEFAULT_PAUSE_TIME = 5;
+#define INT_DEFAULT_STRETCH_TIME 30;
+#define INT_DEFAULT_PAUSE_TIME 5;
+#define INT_INCREMENT_STRETCH 15;
+#define INT_INCREMENT_PAUSE 1;
 
-int stretch_time = 30;
-int stretch_sec = 30;
-int pause_time = 5;
-int pause_sec = 5;
+int stretch_time = INT_DEFAULT_STRETCH_TIME;
+int stretch_sec = INT_DEFAULT_STRETCH_TIME;
+int pause_time = INT_DEFAULT_PAUSE_TIME;
+int pause_sec = INT_DEFAULT_PAUSE_TIME;
 
 int timer_delta = 1000;
+int long_press_delay = 3000;
 AppTimer *stretch_timer;
 AppTimer *pause_timer;
 
@@ -45,7 +48,12 @@ void create_labels(void);
 void start(void);
 void stop(void);
 void update_main_label(int secs);
-
+void long_click_reset_stretch_sec(ClickRecognizerRef recognizer, void *context);
+void long_click_reset_pause_sec(ClickRecognizerRef recognizer, void *context);
+void up_single_click_handler(ClickRecognizerRef recognizer, void *context);
+void down_single_click_handler(ClickRecognizerRef recognizer, void *context);
+void refresh_stretch_time_label(void);
+void refresh_pause_time_label(void);
 //*** Implementation
   
 static void send_debug(char message[]) {
@@ -53,12 +61,15 @@ static void send_debug(char message[]) {
 }
 
 void pause_timer_callback(void *data) {
-  if (pause_sec >= 0) {
+  if (pause_sec > 0) {
     update_main_label(pause_sec);
     pause_sec--;
-    vibes_short_pulse();
+    if (pause_sec < 3) {
+      vibes_short_pulse();
+    }
     register_pause_timer();
   } else {
+    update_main_label(pause_sec);
     vibes_long_pulse();
     pause_sec = pause_time;
     register_stretch_timer();
@@ -66,11 +77,12 @@ void pause_timer_callback(void *data) {
 }
 
 void stretch_timer_callback(void *data) {
-  if (stretch_sec >= 0) {
+  if (stretch_sec > 0) {
     update_main_label(stretch_sec);
     stretch_sec--;
     register_stretch_timer();
   } else {
+    update_main_label(stretch_sec);
     stretch_sec = stretch_time;
     vibes_long_pulse();
     register_pause_timer();
@@ -131,14 +143,9 @@ void handle_init(void) {
 static void window_load(Window *window) {
   create_labels();
 
-  snprintf(stretch_label, 64, "Stretch Time: %d", stretch_time);
-  send_debug(stretch_label);
-  text_layer_set_text(stretch_label_text_layer, stretch_label);
-  
-  snprintf(pause_label, 64, "Pause Time: %d", pause_time);
-  send_debug(pause_label);
-  text_layer_set_text(pause_label_text_layer, pause_label);
-  
+  refresh_stretch_time_label();
+  refresh_pause_time_label();
+
   layer_add_child(window_get_root_layer(window), text_layer_get_layer(stretch_label_text_layer));
   layer_add_child(window_get_root_layer(window), text_layer_get_layer(pause_label_text_layer));
   layer_add_child(window_get_root_layer(window), text_layer_get_layer(main_label_text_layer));
@@ -175,8 +182,46 @@ void select_single_click_handler(ClickRecognizerRef recognizer, void *context) {
   }
 }
 
+void long_click_reset_stretch_sec(ClickRecognizerRef recognizer, void *context) {
+  stretch_time = INT_DEFAULT_STRETCH_TIME;
+  if (stretch_sec > stretch_time) { stretch_sec = stretch_time; }
+  refresh_stretch_time_label();
+}
+
+void long_click_reset_pause_sec(ClickRecognizerRef recognizer, void *context) {
+  pause_time = INT_DEFAULT_PAUSE_TIME;
+  if (pause_sec > pause_time) { pause_sec = pause_time; }
+  refresh_pause_time_label();
+}
+
+void up_single_click_handler(ClickRecognizerRef recognizer, void *context) {
+  stretch_time += INT_INCREMENT_STRETCH;
+  stretch_sec += INT_INCREMENT_STRETCH;
+  refresh_stretch_time_label();
+}
+
+void down_single_click_handler(ClickRecognizerRef recognizer, void *context) {
+  pause_time += INT_INCREMENT_PAUSE;
+  pause_sec += INT_INCREMENT_PAUSE;
+  refresh_pause_time_label();
+}
+
+void refresh_stretch_time_label(void) {
+  snprintf(stretch_label, 64, "Stretch Time: %d", stretch_time);
+  text_layer_set_text(stretch_label_text_layer, stretch_label);
+}
+
+void refresh_pause_time_label(void) {
+  snprintf(pause_label, 64, "Pause Time: %d", pause_time);
+  text_layer_set_text(pause_label_text_layer, pause_label);
+}
+
 void config_provider(Window *window) {
   window_single_click_subscribe(BUTTON_ID_SELECT, select_single_click_handler);
+  window_single_click_subscribe(BUTTON_ID_UP, up_single_click_handler);
+  window_single_click_subscribe(BUTTON_ID_DOWN, down_single_click_handler);
+  window_long_click_subscribe(BUTTON_ID_UP, long_press_delay, long_click_reset_stretch_sec, NULL);
+  window_long_click_subscribe(BUTTON_ID_DOWN, long_press_delay, long_click_reset_pause_sec, NULL);
 }
 
 int main(void) {
